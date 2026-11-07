@@ -1,0 +1,65 @@
+#!/bin/bash
+# Ajustes aplicados no boot (chamado pelo /boot/firstboot.sh, como root).
+# Aplica, em ordem, as versoes que ainda nao rodaram. Log: /boot/ajustes_log.txt
+# v1-v7 (ja aplicadas): LED, controles, hora, ES, save no power, desempenho, audio
+# v8: volume pela escala real do chip (raw 0..237 = -95..-6.75 dB)
+# v9: depois do reset do codec o driver ignora valor repetido -> forca reprogramar (OFF->SPK_HP, volume -1 -> alvo)
+VER=9
+DONE=/boot/ajustes.done
+LOG=/boot/ajustes_log.txt
+VOL_INICIAL=201     # ~ -20 dB: baixo mas audivel (85% na escala crua)
+CUR="$(cat "$DONE" 2>/dev/null)"; CUR=${CUR:-0}
+# todo boot, antes do EmulationStation abrir: saida e volume inicial
+amixer -q sset 'Playback Path' SPK_HP 2>/dev/null
+amixer -q sset 'Playback' $VOL_INICIAL 2>/dev/null
+[ "$CUR" -ge "$VER" ] && exit 0
+
+BK=/opt/ajustes-backup/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$BK"
+exec >>"$LOG" 2>&1
+echo "==== ajustes v$((CUR+1))..v$VER  $(date)  console=$(cat /boot/.console 2>/dev/null) ===="
+bk()   { [ -e "$1" ] && mkdir -p "$BK$(dirname "$1")" && cp -a "$1" "$BK$1" && echo "  backup: $1"; }
+ok()   { echo "OK   $*"; }
+
+echo "[1] audio-fix.sh: reprograma o codec depois do reset (antes ficava mudo ate mexer no volume)"
+F=/usr/local/bin/audio-fix.sh
+bk "$F"
+cat > "$F" <<'EOS'
+#!/bin/bash
+# Reinicia o codec RK817 (R36S V5) e deixa o audio num estado conhecido.
+# Roda no boot pelo audio-resume.service.
+# Escala do chip: 'Playback' raw 0..237 = -95.00..-6.75 dB. Porcentagem engana.
+VOL_INICIAL=201     # ~ -20 dB (baixo mas audivel). Botoes de volume sobem 1 em 1.
+sleep 5
+# suspende 1 s e acorda: reseta fisicamente o RK817
+rtcwake -m mem -s 1
+sleep 2
+# o driver guarda o ultimo valor e ignora escrita repetida: depois do reset do chip
+# e preciso MUDAR o valor para ele reprogramar o hardware (senao fica sem som)
+amixer -q sset 'Playback Path' OFF
+sleep 0.3
+amixer -q sset 'Playback Path' SPK_HP
+amixer -q sset 'Playback' $((VOL_INICIAL - 1))
+amixer -q sset 'Playback' $VOL_INICIAL
+alsactl store
+iw dev wlan0 set power_save off
+
+# diagnostico (lido do PC)
+{
+  echo "==== $(date) ===="
+  echo "--- sget Playback ---";      amixer sget 'Playback' 2>&1
+  echo "--- sget Playback Path ---"; amixer sget 'Playback Path' 2>&1
+  echo "--- Headphone Jack ---";     amixer cget iface=CARD,name='Headphone Jack' 2>&1 | tail -1
+} > /boot/audio_log.txt 2>&1
+sync
+exit 0
+EOS
+chmod 755 "$F"
+bash -n "$F" && ok "audio-fix.sh: OFF->SPK_HP e volume forcados apos o reset"
+amixer -q sset 'Playback Path' SPK_HP && amixer -q sset 'Playback' $VOL_INICIAL && alsactl store && ok "aplicado agora: $(amixer sget 'Playback' | grep -m1 -o '\[[-0-9.]*dB\]')"
+
+sync
+echo "$VER" > "$DONE"
+echo "==== fim $(date) ===="
+echo
+exit 0

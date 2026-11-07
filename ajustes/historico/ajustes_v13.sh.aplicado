@@ -1,0 +1,74 @@
+#!/bin/bash
+# Ajustes aplicados no boot (chamado pelo /boot/firstboot.sh, como root).
+# Aplica, em ordem, as versoes que ainda nao rodaram. Log: /boot/ajustes_log.txt
+# v1-v9 (ja aplicadas): LED, controles, hora, ES, save no power, desempenho, audio
+# v10: icone do Wi-Fi nao reinicia o ES com jogo aberto + diagnostico do Wi-Fi
+# v11: Wi-Fi conectava pela p2p0 (Wi-Fi Direct) e travava sem IP; rk915 nao suporta PMF
+# v12: redes conhecidas conectam sozinhas no boot (normaliza as redes salvas todo boot)
+# v13: PMF volta ao padrao (o hotspot exige PMF e recusava com code=31)
+VER=13
+DONE=/boot/ajustes.done
+LOG=/boot/ajustes_log.txt
+VOL_INICIAL=201     # ~ -20 dB: baixo mas audivel (85% na escala crua)
+CUR="$(cat "$DONE" 2>/dev/null)"; CUR=${CUR:-0}
+# todo boot, antes do EmulationStation abrir: saida e volume inicial
+amixer -q sset 'Playback Path' SPK_HP 2>/dev/null
+amixer -q sset 'Playback' $VOL_INICIAL 2>/dev/null
+# todo boot: diagnostico do Wi-Fi 60 s depois (grava /boot/wifi_log.txt)
+[ -x /usr/local/bin/wifi-diag.sh ] && systemd-run --on-active=60 --unit=wifi-diag-$$ /usr/local/bin/wifi-diag.sh >/dev/null 2>&1
+# todo boot: arruma as redes salvas (inclusive as criadas pelo menu) e recarrega
+if [ -f /usr/local/bin/wifi-conexoes.py ]; then
+  python3 /usr/local/bin/wifi-conexoes.py /etc/NetworkManager/system-connections >/dev/null 2>&1
+  chmod 600 /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null
+  nmcli con reload >/dev/null 2>&1
+fi
+[ "$CUR" -ge "$VER" ] && exit 0
+
+BK=/opt/ajustes-backup/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$BK"
+exec >>"$LOG" 2>&1
+echo "==== ajustes v$((CUR+1))..v$VER  $(date)  console=$(cat /boot/.console 2>/dev/null) ===="
+bk()   { [ -e "$1" ] && mkdir -p "$BK$(dirname "$1")" && cp -a "$1" "$BK$1" && echo "  backup: $1"; }
+ok()   { echo "OK   $*"; }
+
+echo "[1] PMF de volta ao padrao nas redes (hotspot recusava com code=31); wlan0, sem trava de MAC, tentativas infinitas"
+NMC=/etc/NetworkManager/system-connections
+for f in "$NMC"/*.nmconnection; do bk "$f"; done
+cat > /usr/local/bin/wifi-conexoes.py <<'EOS'
+import os, re, sys
+d = sys.argv[1]
+changed = 0
+for f in sorted(os.listdir(d)):
+    if not f.endswith(".nmconnection"): continue
+    p = os.path.join(d, f)
+    s0 = s = open(p, newline="").read()
+    if not re.search(r"^type=wifi$", s, re.M):
+        continue
+    def put(sec, key, val):
+        global s
+        if re.search(rf"^{key}=.*$", s, re.M):
+            s = re.sub(rf"^{key}=.*$", f"{key}={val}", s, flags=re.M)
+        elif f"[{sec}]\n" in s:
+            s = s.replace(f"[{sec}]\n", f"[{sec}]\n{key}={val}\n", 1)
+        else:
+            s = s.rstrip("\n") + f"\n\n[{sec}]\n{key}={val}\n"
+    put("connection", "interface-name", "wlan0")    # nunca a p2p0 (Wi-Fi Direct)
+    put("connection", "autoconnect", "true")
+    put("connection", "autoconnect-retries", "0")   # tenta para sempre, conecta quando a rede aparecer
+    s = re.sub(r"^(mac-address|cloned-mac-address)=.*\n", "", s, flags=re.M)  # MAC do rk915 muda todo boot
+    s = re.sub(r"^pmf=.*\n", "", s, flags=re.M)  # PMF no padrao: o hotspot exige (code=31 se desligado)
+    if s != s0:
+        open(p, "w", newline="").write(s); changed += 1
+        print("ajustada:", f)
+print("redes ajustadas:", changed)
+EOS
+python3 /usr/local/bin/wifi-conexoes.py "$NMC" && ok "wifi-conexoes.py instalado e aplicado"
+chmod 600 "$NMC"/*.nmconnection
+nmcli con reload && ok "NetworkManager recarregou as redes"
+nmcli -t -f NAME,AUTOCONNECT con show | sed "s/^/  /"
+
+sync
+echo "$VER" > "$DONE"
+echo "==== fim $(date) ===="
+echo
+exit 0

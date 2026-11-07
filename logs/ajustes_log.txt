@@ -1,0 +1,203 @@
+==== ajustes v1  Fri 18 Sep 2026 12:57:43 AM -03  console=k36s ====
+[1] joyled: padrao breathing red + boot passa a respeitar o menu JoyLED
+  backup: /usr/local/bin/k36s_joyled.sh
+OK   k36s_joyled.sh reescrito
+  backup: /var/lib/joyled/state
+OK   estado do menu JoyLED = breath_red
+[2] NDS: botoes pelo indice real do GO-Super Gamepad, atalhos so com FN
+  backup: /opt/drastic/drastic.gptk
+OK   drastic.gptk: FN+R2 salva, FN+L2 carrega, FN+R3 menu (demais botoes sem tecla extra)
+  backup: /opt/drastic/config/drastic.cfg
+  chaves alteradas: 24  ausentes: []
+OK   drastic.cfg: controles do joystick corrigidos
+  backup: /usr/local/bin/drastickeydemon.py
+OK   sair do NDS: SELECT+START -> FN+START (igual aos outros emuladores)
+[3] PSP: mapeamento correto do GO-Super para o PPSSPP (sem ele o d-pad esquerdo abria o menu)
+  ja existe entrada GO-Super, nao alterado:
+190000004b4800000011000000010000,GO-Super Gamepad,x:b2,a:b1,b:b0,y:b3,back:b12,start:b13,dpleft:b10,dpdown:b9,dpright:b11,dpup:b8,leftshoulder:b4,lefttrigger:b6,rightshoulder:b5,righttrigger:b7,leftstick:b14,guide:b15,leftx:a0,lefty:a1,rightx:a2,righty:a3,platform:Linux,
+[4] hora: fuso consistente + sincronizacao pela internet sempre ligada
+  backup: /etc/timezone
+OK   fuso America/Sao_Paulo (/etc/timezone estava Etc/UTC)
+  backup: /etc/systemd/timesyncd.conf
+OK   servidores NTP.br configurados
+  backup: /opt/system/Disable Remote Services.sh
+OK   "/opt/system/Disable Remote Services.sh" nao desliga mais a sincronizacao
+OK   NTP ligado: yes
+OK   hora grava no RTC sempre que o Wi-Fi conecta
+[5] EmulationStation
+  backup: /home/ark/.emulationstation/es_settings.cfg
+  <bool name="ClockMode12" value="false" />
+  <int name="MaxVRAM" value="200" />
+  <string name="ScreenSaverBehavior" value="dim" />
+OK   MaxVRAM 1000->200, relogio 24h, descanso de tela sem video
+==== fim Fri 18 Sep 2026 12:57:45 AM -03 ====
+
+==== ajustes v2  Fri 18 Sep 2026 01:13:51 AM -03  console=k36s ====
+[1] NDS: atalhos com FN (o gptokeyb nao enxerga o FN no gamecontrollerdb do sistema)
+  backup: /usr/local/bin/drastickeydemon.py
+OK   drastickeydemon.py: FN+START sai, FN+R2 salva, FN+L2 carrega, FN+R3 menu, FN+SELECT layout
+[2] PSP: guide (menu) do R3 para o FN
+  backup: /opt/ppsspp/assets/gamecontrollerdb.txt
+  antes : 190000004b4800000011000000010000,GO-Super Gamepad,x:b2,a:b1,b:b0,y:b3,back:b12,start:b13,dpleft:b10,dpdown:b9,dpright:b11,dpup:b8,leftshoulder:b4,lefttrigger:b6,rightshoulder:b5,righttrigger:b7,leftstick:b14,guide:b15,leftx:a0,lefty:a1,rightx:a2,righty:a3,platform:Linux,
+  depois: 190000004b4800000011000000010000,GO-Super Gamepad,x:b2,a:b1,b:b0,y:b3,back:b12,start:b13,dpleft:b10,dpdown:b9,dpright:b11,dpup:b8,leftshoulder:b4,lefttrigger:b6,rightshoulder:b5,righttrigger:b7,leftstick:b14,rightstick:b15,guide:b16,leftx:a0,lefty:a1,rightx:a2,righty:a3,platform:Linux,
+OK   PPSSPP: FN abre o menu, R3 volta a ser R3
+==== fim Fri 18 Sep 2026 01:13:52 AM -03 ====
+
+==== ajustes v3..v4  Fri 18 Sep 2026 10:27:36 AM -03  console=k36s ====
+--- v3 ---
+[1] RetroArch: autosave_interval 0 -> 10 s (antes o save so ia pro cartao ao sair do jogo)
+  backup: /home/ark/.config/retroarch/retroarch.cfg
+OK   /home/ark/.config/retroarch/retroarch.cfg
+  backup: /home/ark/.config/retroarch/retroarch.cfg.bak
+OK   /home/ark/.config/retroarch/retroarch.cfg.bak
+  backup: /home/ark/.config/retroarch32/retroarch.cfg
+OK   /home/ark/.config/retroarch32/retroarch.cfg
+  backup: /home/ark/.config/retroarch32/retroarch.cfg.bak
+OK   /home/ark/.config/retroarch32/retroarch.cfg.bak
+  backup: /home/ark/.config/retroarch/config/Atari800/retroarch_A800.cfg
+OK   /home/ark/.config/retroarch/config/Atari800/retroarch_A800.cfg
+  backup: /home/ark/.config/retroarch/config/Atari800/retroarch_5200.cfg
+OK   /home/ark/.config/retroarch/config/Atari800/retroarch_5200.cfg
+  backup: /home/ark/.config/retroarch/config/Atari800/retroarch_XEGS.cfg
+OK   /home/ark/.config/retroarch/config/Atari800/retroarch_XEGS.cfg
+[2] kernel: dados vao pro cartao em ~2 s (antes ate 30 s na memoria)
+vm.dirty_expire_centisecs = 200
+vm.dirty_writeback_centisecs = 100
+OK   sysctl aplicado
+[3] botao de power: sync imediato + fecha emuladores standalone antes de desligar
+OK   salvar-jogo.sh criado
+  backup: /usr/local/bin/finish.sh
+  backup: /usr/local/bin/finish.sh.orig
+  backup: /usr/local/bin/finish.sh.qm
+  backup: /usr/local/bin/pause.sh
+  backup: /usr/local/bin/pause.sh.orig
+  backup: /usr/local/bin/pause.sh.qm
+OK   /usr/local/bin/finish.sh
+OK   /usr/local/bin/finish.sh.orig
+OK   /usr/local/bin/finish.sh.qm
+OK   /usr/local/bin/pause.sh
+OK   /usr/local/bin/pause.sh.orig
+OK   /usr/local/bin/pause.sh.qm
+OK   sintaxe finish.sh
+OK   sintaxe pause.sh
+--- v4 ---
+[1] desempenho maximo nos jogos (GlobalPerformanceGovernor nao existia: o perfmax recebia o caminho da ROM no lugar do governor)
+  backup: /home/ark/.emulationstation/es_settings.cfg
+  <string name="GlobalPerformanceGovernor" value="performance" />
+OK   jogos com CPU/GPU/memoria em performance (menu continua economico)
+==== fim Fri 18 Sep 2026 10:27:37 AM -03 ====
+
+==== ajustes v5..v5  Fri 18 Sep 2026 10:44:11 AM -03  console=k36s ====
+[1] audio-fix.sh: os comandos amixer estavam colados na linha do sleep e nunca rodavam
+  backup: /usr/local/bin/audio-fix.sh
+OK   audio-fix.sh corrigido: saida SPK_HP (alto-falante e fone), volume 10% em todo boot
+==== fim Fri 18 Sep 2026 10:44:11 AM -03 ====
+
+==== ajustes v6..v6  Fri 18 Sep 2026 10:54:56 AM -03  console=k36s ====
+[1] audio-fix.sh: saida SPK (alto-falante com ganho normal), volume inicial 10%
+  backup: /usr/local/bin/audio-fix.sh
+OK   audio-fix.sh: SPK + volume inicial 10%
+OK   Playback Path = Item0: 'SPK'
+==== fim Fri 18 Sep 2026 10:54:56 AM -03 ====
+
+==== ajustes v7..v7  Fri 18 Sep 2026 11:04:54 AM -03  console=k36s ====
+[1] audio-fix.sh: SPK_HP (com SPK o alto-falante fica mudo neste aparelho) + diagnostico
+  backup: /usr/local/bin/audio-fix.sh
+OK   audio-fix.sh: SPK_HP + Playback 60% + diagnostico em /boot/audio_log.txt
+OK   aplicado agora: Item0: 'SPK_HP'
+==== fim Fri 18 Sep 2026 11:04:54 AM -03 ====
+
+==== ajustes v8..v8  Fri 18 Sep 2026 11:11:26 AM -03  console=k36s ====
+[1] audio-fix.sh: volume inicial ~ -20 dB (raw 201), saida SPK_HP
+  backup: /usr/local/bin/audio-fix.sh
+OK   audio-fix.sh: SPK_HP + volume raw 201
+OK   aplicado agora: [-20.16dB]
+==== fim Fri 18 Sep 2026 11:11:26 AM -03 ====
+
+==== ajustes v9..v9  Fri 18 Sep 2026 11:17:10 AM -03  console=k36s ====
+[1] audio-fix.sh: reprograma o codec depois do reset (antes ficava mudo ate mexer no volume)
+  backup: /usr/local/bin/audio-fix.sh
+OK   audio-fix.sh: OFF->SPK_HP e volume forcados apos o reset
+OK   aplicado agora: [-20.16dB]
+==== fim Fri 18 Sep 2026 11:17:10 AM -03 ====
+
+==== ajustes v10..v10  Fri 18 Sep 2026 11:23:56 AM -03  console=k36s ====
+[1] icone do Wi-Fi: so reinicia o EmulationStation quando nao ha jogo aberto
+  backup: /usr/local/bin/wifi_icon_state_updater.sh
+OK   wifi_icon_state_updater.sh: espera o jogo fechar antes de reiniciar o ES
+OK   servico reiniciado
+[2] diagnostico do Wi-Fi a cada boot
+OK   wifi-diag.sh criado
+OK   primeiro diagnostico agendado
+==== fim Fri 18 Sep 2026 11:23:56 AM -03 ====
+
+==== ajustes v11..v11  Fri 18 Sep 2026 11:29:29 AM -03  console=k36s ====
+[1] Wi-Fi: redes presas na p2p0 -> wlan0; PMF desligado (rk915 nao suporta a cifra 0xFAC06)
+  backup: /etc/NetworkManager/system-connections/<rede-3>.nmconnection
+  backup: /etc/NetworkManager/system-connections/ethernet-eth0-2.nmconnection
+  backup: /etc/NetworkManager/system-connections/<rede-5>.nmconnection
+  ok: <rede-3>.nmconnection | interface wlan0, pmf desligado
+  ok: <rede-5>.nmconnection | interface wlan0, pmf desligado
+[2] NetworkManager: ignora a p2p0 e desliga a economia de energia do Wi-Fi
+OK   99-k36s-wifi.conf criado
+OK   NetworkManager reiniciado
+==== fim Fri 18 Sep 2026 11:29:29 AM -03 ====
+
+==== ajustes v12..v12  Fri 18 Sep 2026 11:36:27 AM -03  console=k36s ====
+[1] redes conhecidas conectam sozinhas: wlan0, sem trava de MAC, sem PMF, tentativas infinitas
+  backup: /etc/NetworkManager/system-connections/<rede-2>.nmconnection
+  backup: /etc/NetworkManager/system-connections/<rede-3>.nmconnection
+  backup: /etc/NetworkManager/system-connections/ethernet-eth0-2.nmconnection
+  backup: /etc/NetworkManager/system-connections/<rede-5>.nmconnection
+ajustada: <rede-2>.nmconnection
+ajustada: <rede-3>.nmconnection
+ajustada: <rede-5>.nmconnection
+redes ajustadas: 3
+OK   wifi-conexoes.py instalado e aplicado
+OK   NetworkManager recarregou as redes
+  lo:no
+  <rede-2>:yes
+  <rede-3>:yes
+  ethernet-eth0-2:yes
+  <rede-5>:yes
+==== fim Fri 18 Sep 2026 11:36:27 AM -03 ====
+
+==== ajustes v13..v13  Fri 18 Sep 2026 11:40:34 AM -03  console=k36s ====
+[1] PMF de volta ao padrao nas redes (hotspot recusava com code=31); wlan0, sem trava de MAC, tentativas infinitas
+  backup: /etc/NetworkManager/system-connections/<rede-2>.nmconnection
+  backup: /etc/NetworkManager/system-connections/<rede-3>.nmconnection
+  backup: /etc/NetworkManager/system-connections/ethernet-eth0-2.nmconnection
+  backup: /etc/NetworkManager/system-connections/<rede-5>.nmconnection
+ajustada: <rede-2>.nmconnection
+ajustada: <rede-3>.nmconnection
+ajustada: <rede-5>.nmconnection
+redes ajustadas: 3
+OK   wifi-conexoes.py instalado e aplicado
+OK   NetworkManager recarregou as redes
+  lo:no
+  <rede-2>:yes
+  <rede-3>:yes
+  ethernet-eth0-2:yes
+  <rede-5>:yes
+==== fim Fri 18 Sep 2026 11:40:35 AM -03 ====
+
+==== ajustes v14..v14  Fri 18 Sep 2026 09:10:19 PM -03  console=k36s ====
+[1] audio-fix.sh v14: Wi-Fi desligado durante o reset do codec + confere se suspendeu (tenta ate 3x)
+  backup: /usr/local/bin/audio-fix.sh
+OK   audio-fix.sh v14 instalado
+  After=multi-user.target sound.target network.target 
+  ExecStart=/usr/local/bin/audio-fix.sh 
+  RemainAfterExit=yes 
+==== fim Fri 18 Sep 2026 09:10:19 PM -03 ====
+
+==== ajustes v15..v15  Fri 18 Sep 2026 09:34:41 PM -03  console=k36s ====
+[1] audio-fix.sh v15: igual a v9 (sem mexer no Wi-Fi), suspensao com timeout, log do resultado
+  backup: /usr/local/bin/audio-fix.sh
+OK   audio-fix.sh v15 instalado
+==== fim Fri 18 Sep 2026 09:34:42 PM -03 ====
+
+==== ajustes v16..v16  Mon 21 Sep 2026 04:03:28 PM -03  console=k36s ====
+[2] diagnostico DraStic (somente leitura): copia para /boot/drastic_diag/
+OK   diagnostico DraStic copiado
+==== fim Mon 21 Sep 2026 04:03:29 PM -03 ====
+

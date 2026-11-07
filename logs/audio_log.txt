@@ -1,0 +1,23 @@
+==== Wed 14 Oct 2026 10:21:45 PM -03 ====
+rtcwake rc=0  suspensoes ok antes= depois=
+rtcwake: wakeup from "mem" using /dev/rtc0 at Thu Oct 15 01:21:42 2026
+--- dmesg PM ---
+[    2.093871] asoc-simple-card rk817-sound: ASoC: no sink widget found for MIC_IN
+[    2.094047] asoc-simple-card rk817-sound: ASoC: Failed to add route Mic Jack -> direct -> MIC_IN
+[    2.094250] asoc-simple-card rk817-sound: ASoC: no source widget found for HPOL
+[    2.094420] asoc-simple-card rk817-sound: ASoC: Failed to add route HPOL -> direct -> Headphone Jack
+[    2.094631] asoc-simple-card rk817-sound: ASoC: no source widget found for HPOR
+[    2.094802] asoc-simple-card rk817-sound: ASoC: Failed to add route HPOR -> direct -> Headphone Jack
+[    2.096143] input: rockchip,rk817-codec Headphones as /devices/platform/rk817-sound/sound/card0/input1
+[    2.706200]   #0: rockchip,rk817-codec
+[   26.057289] PM: suspend entry 2026-10-15 01:21:40.866422344 UTC
+[   26.164438] PM: Suspending system (mem)
+[   26.370914] PM: suspend of devices complete after 206.003 msecs
+[   27.846549] PM: suspend exit 2026-10-15 01:21:43.320808750 UTC
+--- sget Playback ---
+  Front Left: 201 [85%] [-20.16dB]
+  Front Right: 201 [85%] [-20.16dB]
+--- sget Playback Path ---
+  Item0: 'SPK_HP'
+--- Headphone Jack ---
+  : values=on

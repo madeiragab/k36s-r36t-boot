@@ -1,0 +1,18 @@
+~ /dwmmc@ff370000:no-mmc-hs200
+    antes:  (ausente)
+    depois: (presente, sem valor)
+~ /dwmmc@ff370000:no-sd-uhs-sdr104
+    antes:  (ausente)
+    depois: (presente, sem valor)
+~ /dwmmc@ff370000:no-sd-uhs-sdr25
+    antes:  (ausente)
+    depois: (presente, sem valor)
+~ /odroidgo3-joypad:invert-absrx
+    antes:  (ausente)
+    depois: (presente, sem valor)
+~ /odroidgo3-joypad:invert-absry
+    antes:  (ausente)
+    depois: (presente, sem valor)
+~ /odroidgo3-joypad:skip-absr
+    antes:  (presente, sem valor)
+    depois: (ausente)

@@ -1,0 +1,61 @@
+#!/bin/bash
+# Ajustes aplicados no boot (chamado pelo /boot/firstboot.sh, como root).
+# Aplica, em ordem, as versoes que ainda nao rodaram. Log: /boot/ajustes_log.txt
+# v1-v6 (ja aplicadas): LED, controles, hora, ES, save no power, desempenho, audio
+# v7: alto-falante deste K36S fica na saida de fone -> SPK_HP; diagnostico de audio em /boot/audio_log.txt
+VER=7
+DONE=/boot/ajustes.done
+LOG=/boot/ajustes_log.txt
+CUR="$(cat "$DONE" 2>/dev/null)"; CUR=${CUR:-0}
+# todo boot, antes do EmulationStation abrir: saida que funciona neste aparelho
+amixer -q sset 'Playback Path' SPK_HP 2>/dev/null
+[ "$CUR" -ge "$VER" ] && exit 0
+
+BK=/opt/ajustes-backup/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$BK"
+exec >>"$LOG" 2>&1
+echo "==== ajustes v$((CUR+1))..v$VER  $(date)  console=$(cat /boot/.console 2>/dev/null) ===="
+bk()   { [ -e "$1" ] && mkdir -p "$BK$(dirname "$1")" && cp -a "$1" "$BK$1" && echo "  backup: $1"; }
+ok()   { echo "OK   $*"; }
+
+echo "[1] audio-fix.sh: SPK_HP (com SPK o alto-falante fica mudo neste aparelho) + diagnostico"
+F=/usr/local/bin/audio-fix.sh
+bk "$F"
+cat > "$F" <<'EOS'
+#!/bin/bash
+# Reinicia o codec RK817 (R36S V5) e deixa o audio num estado conhecido.
+# Roda no boot pelo audio-resume.service.
+sleep 5
+# suspende 1 s e acorda: reseta fisicamente o RK817
+rtcwake -m mem -s 1
+sleep 2
+# neste K36S o alto-falante fica ligado na saida de fone: SPK sozinho fica mudo
+amixer -q sset 'Playback Path' SPK_HP
+amixer -q sset 'Playback' 60% unmute 2>/dev/null || amixer -q sset 'Playback' 60%
+alsactl store
+iw dev wlan0 set power_save off
+
+# diagnostico (lido do PC para acertar o volume inicial no controle certo)
+{
+  echo "==== $(date) ===="
+  echo "--- cartoes ---";           cat /proc/asound/cards
+  echo "--- aplay -l ---";          aplay -l 2>&1
+  echo "--- scontrols ---";         amixer scontrols 2>&1
+  echo "--- sget Playback ---";     amixer sget 'Playback' 2>&1
+  echo "--- sget Playback Path ---"; amixer sget 'Playback Path' 2>&1
+  echo "--- contents (faixas e dB) ---"; amixer contents 2>&1
+  echo "--- dmesg audio ---";       dmesg | grep -iE "rk817|codec|snd|asoc|audio|i2s|spk|hp_det|headphone" | tail -40
+} > /boot/audio_log.txt 2>&1
+sync
+exit 0
+EOS
+chmod 755 "$F"
+bash -n "$F" && ok "audio-fix.sh: SPK_HP + Playback 60% + diagnostico em /boot/audio_log.txt"
+amixer -q sset 'Playback Path' SPK_HP && amixer -q sset 'Playback' 60% && ok "aplicado agora: $(amixer sget 'Playback Path' | grep -o "Item0: '[^']*'")"
+alsactl store
+
+sync
+echo "$VER" > "$DONE"
+echo "==== fim $(date) ===="
+echo
+exit 0

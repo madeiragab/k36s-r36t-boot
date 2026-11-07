@@ -1,0 +1,58 @@
+--- /opt/drastic
+total 4720
+drwxrwxr-x 11 ark  ark     4096 Jan 27  2026 .
+drwxr-xr-x 39 ark  ark     4096 Sep 18 00:57 ..
+lrwxrwxrwx  1 root root      16 Jan 26  2026 backup -> /roms/nds/backup
+lrwxrwxrwx  1 root root      16 Jan 26  2026 cheats -> /roms/nds/cheats
+drwxrwxr-x  3 ark  ark     4096 Jan 27  2026 config
+-rwxrwxr-x  1 ark  ark  1390944 Nov 14  2025 drastic
+-rwxrwxr-x  1 ark  ark      561 Sep 18 00:57 drastic.gptk
+-rwxrwxr-x  1 ark  ark   120000 Nov 14  2025 drastic_logo_0.raw
+-rwxrwxr-x  1 ark  ark   120000 Nov 14  2025 drastic_logo_1.raw
+-rwxrwxr-x  1 ark  ark  1390944 Dec 11  2025 drastic-nearest
+-rwxrwxr-x  1 ark  ark    50774 Nov 14  2025 drastic_readme.txt
+-rwxrwxr-x  1 ark  ark  1650492 Nov 14  2025 game_database.xml
+-rwxrwxr-x  1 ark  ark    47896 Nov 20  2025 gptokeyb
+drwxr-xr-x  2 ark  ark     4096 Jan 27  2026 input_record
+drwxrwxr-x  2 ark  ark     4096 Dec 10  2025 libs
+drwxr-xr-x  2 ark  ark     4096 Jan 27  2026 microphone
+drwxrwxr-x  2 ark  ark     4096 Mar 24  2020 profiles
+drwxrwxr-x  7 ark  ark     4096 Dec  9  2025 resources
+lrwxrwxrwx  1 root root      20 Jan 26  2026 savestates -> /roms/nds/savestates
+drwxr-xr-x  2 ark  ark     4096 Jan 27  2026 scripts
+lrwxrwxrwx  1 root root      15 Jan 26  2026 slot2 -> /roms/nds/slot2
+drwxrwxr-x  2 ark  ark     4096 Nov 14  2025 system
+drwxr-xr-x  2 ark  ark     4096 Jan 27  2026 unzip_cache
+lrwxrwxrwx  1 root root      48 Jan 27  2026 usrcheat.dat -> /opt/drastic/resources/cheats/es_EN/usrcheat.dat
+--- procura de scripts
+/opt/drastic
+/opt/drastic/drastic.gptk
+/opt/drastic/drastic_logo_0.raw
+/opt/drastic/drastic
+/opt/drastic/drastic_logo_1.raw
+/opt/drastic/drastic_readme.txt
+/opt/drastic/drastic-nearest
+/usr/local/bin/__pycache__/drastickeydemon.cpython-37.pyc
+/usr/local/bin/drastic.sh
+/usr/local/bin/drastickeydemon.py
+--- es_systems nds
+1356-		<path>/roms/nds/</path>
+1357-		<extension>.7z .7Z .nds .NDS .zip .ZIP</extension>
+1358:		<command>sudo perfmax %GOVERNOR% %ROM%; nice -n -19 /usr/local/bin/drastic.sh %ROM%; sudo perfnorm</command>
+1359-		<platform>nds</platform>
+1360-		<theme>nds</theme>
+1361-		<manufacturer>Nintendo</manufacturer>
+1362-		<release>2004</release>
+1363-		<hardware>handheld</hardware>
+1364-	</system>
+1365-	<system>
+1366-		<name>sg-1000</name>
+--- dispositivos de entrada
+N: Name="rk8xx_pwrkey"
+H: Handlers=kbd event0 dmcfreq cpufreq 
+N: Name="rockchip,rk817-codec Headphones"
+H: Handlers=event1 
+N: Name="GO-Super Gamepad"
+H: Handlers=js0 event2 dmcfreq cpufreq 
+N: Name="rk29-keypad"
+H: Handlers=event3 cpufreq 

@@ -1,0 +1,97 @@
+#!/bin/bash
+# Ajustes aplicados no boot (chamado pelo /boot/firstboot.sh, como root).
+# Roda uma vez por versao. Log: /boot/ajustes_log.txt
+# v1 (ja aplicada): LED, controles NDS, hora, EmulationStation
+# v2: atalhos FN do NDS lidos direto do hardware + FN abre o menu do PSP
+VER=2
+DONE=/boot/ajustes.done
+LOG=/boot/ajustes_log.txt
+[ "$(cat "$DONE" 2>/dev/null)" = "$VER" ] && exit 0
+
+BK=/opt/ajustes-backup/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$BK"
+exec >>"$LOG" 2>&1
+echo "==== ajustes v$VER  $(date)  console=$(cat /boot/.console 2>/dev/null) ===="
+bk()   { [ -e "$1" ] && mkdir -p "$BK$(dirname "$1")" && cp -a "$1" "$BK$1" && echo "  backup: $1"; }
+ok()   { echo "OK   $*"; }
+fail() { echo "ERRO $*"; }
+
+# ------------------------------------------------------------------ 1. NDS: FN direto do hardware
+echo "[1] NDS: atalhos com FN (o gptokeyb nao enxerga o FN no gamecontrollerdb do sistema)"
+D=/usr/local/bin/drastickeydemon.py
+bk "$D"
+cat > "$D" <<'EOF'
+#!/usr/bin/env python3
+# Atalhos do NDS (DraStic) com FN, lidos direto do controle. Lancado pelo drastic.sh.
+#   FN+START  sair               FN+R2  salvar state (F5)
+#   FN+L2     carregar state (F7) FN+R3  menu do DraStic (m)
+#   FN+SELECT trocar layout da tela (a)
+import subprocess, time
+import evdev
+from evdev import ecodes as e, UInput
+
+FN, START, SELECT, L2, R2, R3 = 708, 705, 704, 312, 313, 707
+COMBO = {R2: e.KEY_F5, L2: e.KEY_F7, R3: e.KEY_M, SELECT: e.KEY_A}
+
+def find_pad():
+    for path in evdev.list_devices():
+        try:
+            dev = evdev.InputDevice(path)
+            if dev.name in ("GO-Super Gamepad", "OpenSimHardware OSH PB Controller"):
+                return dev
+        except OSError:
+            pass
+    return evdev.InputDevice("/dev/input/event2")
+
+pad = find_pad()
+kbd = UInput({e.EV_KEY: list(range(1, 249))}, name="drastic-fn-atalhos")
+
+def tap(key):
+    kbd.write(e.EV_KEY, key, 1); kbd.syn()
+    time.sleep(0.05)
+    kbd.write(e.EV_KEY, key, 0); kbd.syn()
+
+for ev in pad.read_loop():
+    if ev.type != e.EV_KEY or ev.value != 1:
+        continue
+    if FN not in pad.active_keys():
+        continue
+    if ev.code == START:
+        subprocess.call(["pkill", "-x", "drastic"])
+    elif ev.code in COMBO:
+        tap(COMBO[ev.code])
+EOF
+chmod 755 "$D"
+if python3 -m py_compile "$D" && python3 -c "import evdev; from evdev import UInput" ; then
+    ok "drastickeydemon.py: FN+START sai, FN+R2 salva, FN+L2 carrega, FN+R3 menu, FN+SELECT layout"
+else
+    fail "daemon novo com problema, restaurando o anterior"; cp -a "$BK$D" "$D"
+fi
+
+# ------------------------------------------------------------------ 2. PSP: FN abre o menu
+echo "[2] PSP: guide (menu) do R3 para o FN"
+DB=/opt/ppsspp/assets/gamecontrollerdb.txt
+bk "$DB"
+python3 - "$DB" <<'PY' && ok "PPSSPP: FN abre o menu, R3 volta a ser R3"
+import sys, os
+p = sys.argv[1]
+line = ("190000004b4800000011000000010000,GO-Super Gamepad,x:b2,a:b1,b:b0,y:b3,back:b12,start:b13,"
+        "dpleft:b10,dpdown:b9,dpright:b11,dpup:b8,leftshoulder:b4,lefttrigger:b6,rightshoulder:b5,"
+        "righttrigger:b7,leftstick:b14,rightstick:b15,guide:b16,leftx:a0,lefty:a1,rightx:a2,righty:a3,platform:Linux,")
+rows = open(p, newline="").read().split("\n") if os.path.exists(p) else []
+n = 0
+for i, r in enumerate(rows):
+    if ",GO-Super Gamepad," in r:
+        print("  antes :", r); rows[i] = line; n += 1
+if n == 0:
+    if rows and rows[-1] == "": rows.insert(len(rows) - 1, line)
+    else: rows.append(line)
+print("  depois:", line)
+open(p, "w", newline="").write("\n".join(rows) if rows[-1] == "" else "\n".join(rows) + "\n")
+PY
+
+sync
+echo "$VER" > "$DONE"
+echo "==== fim $(date) ===="
+echo
+exit 0

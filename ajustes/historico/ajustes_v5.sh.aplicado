@@ -1,0 +1,45 @@
+#!/bin/bash
+# Ajustes aplicados no boot (chamado pelo /boot/firstboot.sh, como root).
+# Aplica, em ordem, as versoes que ainda nao rodaram. Log: /boot/ajustes_log.txt
+# v1-v4 (ja aplicadas): LED, controles, hora, ES, save no power, desempenho
+# v5: audio que as vezes nao liga / sai distorcido + volume 10% ao ligar
+VER=5
+DONE=/boot/ajustes.done
+LOG=/boot/ajustes_log.txt
+CUR="$(cat "$DONE" 2>/dev/null)"; CUR=${CUR:-0}
+[ "$CUR" -ge "$VER" ] && exit 0
+
+BK=/opt/ajustes-backup/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$BK"
+exec >>"$LOG" 2>&1
+echo "==== ajustes v$((CUR+1))..v$VER  $(date)  console=$(cat /boot/.console 2>/dev/null) ===="
+bk()   { [ -e "$1" ] && mkdir -p "$BK$(dirname "$1")" && cp -a "$1" "$BK$1" && echo "  backup: $1"; }
+ok()   { echo "OK   $*"; }
+
+echo "[1] audio-fix.sh: os comandos amixer estavam colados na linha do sleep e nunca rodavam"
+F=/usr/local/bin/audio-fix.sh
+bk "$F"
+cat > "$F" <<'EOF'
+#!/bin/bash
+# Reinicia o codec RK817 (R36S V5) e deixa o audio num estado conhecido.
+# Roda no boot pelo audio-resume.service.
+sleep 5
+# suspende 1 s e acorda: reseta fisicamente o RK817
+rtcwake -m mem -s 1
+sleep 2
+# saida no alto-falante e no fone, som ligado e volume inicial em 10%
+alsactl restore 2>/dev/null
+amixer -q sset 'Playback Path' SPK_HP
+amixer -q sset 'Playback' 10% unmute 2>/dev/null || amixer -q sset 'Playback' 10%
+alsactl store
+iw dev wlan0 set power_save off
+exit 0
+EOF
+chmod 755 "$F"
+bash -n "$F" && ok "audio-fix.sh corrigido: saida SPK_HP (alto-falante e fone), volume 10% em todo boot"
+
+sync
+echo "$VER" > "$DONE"
+echo "==== fim $(date) ===="
+echo
+exit 0

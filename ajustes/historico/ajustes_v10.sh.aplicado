@@ -1,0 +1,70 @@
+#!/bin/bash
+# Ajustes aplicados no boot (chamado pelo /boot/firstboot.sh, como root).
+# Aplica, em ordem, as versoes que ainda nao rodaram. Log: /boot/ajustes_log.txt
+# v1-v9 (ja aplicadas): LED, controles, hora, ES, save no power, desempenho, audio
+# v10: icone do Wi-Fi nao reinicia o ES com jogo aberto + diagnostico do Wi-Fi
+VER=10
+DONE=/boot/ajustes.done
+LOG=/boot/ajustes_log.txt
+VOL_INICIAL=201     # ~ -20 dB: baixo mas audivel (85% na escala crua)
+CUR="$(cat "$DONE" 2>/dev/null)"; CUR=${CUR:-0}
+# todo boot, antes do EmulationStation abrir: saida e volume inicial
+amixer -q sset 'Playback Path' SPK_HP 2>/dev/null
+amixer -q sset 'Playback' $VOL_INICIAL 2>/dev/null
+# todo boot: diagnostico do Wi-Fi 60 s depois (grava /boot/wifi_log.txt)
+[ -x /usr/local/bin/wifi-diag.sh ] && systemd-run --on-active=60 --unit=wifi-diag-$$ /usr/local/bin/wifi-diag.sh >/dev/null 2>&1
+[ "$CUR" -ge "$VER" ] && exit 0
+
+BK=/opt/ajustes-backup/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$BK"
+exec >>"$LOG" 2>&1
+echo "==== ajustes v$((CUR+1))..v$VER  $(date)  console=$(cat /boot/.console 2>/dev/null) ===="
+bk()   { [ -e "$1" ] && mkdir -p "$BK$(dirname "$1")" && cp -a "$1" "$BK$1" && echo "  backup: $1"; }
+ok()   { echo "OK   $*"; }
+
+echo "[1] icone do Wi-Fi: so reinicia o EmulationStation quando nao ha jogo aberto"
+U=/usr/local/bin/wifi_icon_state_updater.sh
+bk "$U"
+python3 - "$U" <<'PY' && ok "wifi_icon_state_updater.sh: espera o jogo fechar antes de reiniciar o ES"
+import sys
+p = sys.argv[1]
+s = open(p, newline="").read()
+old = "            systemctl restart emulationstation\n"
+new = ("            # nao derruba jogo aberto: espera o ES ficar sem processo filho (jogo)\n"
+       "            while es=$(pidof -s emulationstation) && [ -n \"$es\" ] && pgrep -P \"$es\" >/dev/null; do sleep 2; done\n"
+       "            systemctl restart emulationstation\n")
+assert s.count(old) == 1, "trecho nao encontrado"
+open(p, "w", newline="").write(s.replace(old, new))
+PY
+bash -n "$U" && systemctl restart wifi-icon-updater && ok "servico reiniciado"
+
+echo "[2] diagnostico do Wi-Fi a cada boot"
+cat > /usr/local/bin/wifi-diag.sh <<'EOS'
+#!/bin/bash
+# Estado do Wi-Fi ~60 s depois do boot, para leitura no PC.
+{
+  echo "==== $(date) ===="
+  echo "--- nmcli general ---";  nmcli general 2>&1
+  echo "--- nmcli dev ---";      nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev 2>&1
+  echo "--- conexoes salvas ---"; nmcli -t -f NAME,TYPE,AUTOCONNECT con show 2>&1
+  echo "--- redes visiveis ---"; nmcli -t -f SSID,SIGNAL,SECURITY dev wifi list 2>&1 | head -15
+  echo "--- ip ---";             ip -br addr 2>&1
+  echo "--- rota ---";           ip route 2>&1
+  echo "--- ping 8.8.8.8 ---";   ping -c 2 -W 3 8.8.8.8 2>&1 | tail -2
+  echo "--- dns ---";            ping -c 1 -W 3 pool.ntp.org 2>&1 | head -1
+  echo "--- rfkill ---";         rfkill list 2>&1
+  echo "--- iw ---";             iw dev 2>&1
+  echo "--- hora ---";           timedatectl status 2>&1 | grep -E "Local time|synchronized|NTP service"
+  echo "--- icone ---";          md5sum /roms/themes/es-theme-nes-box/art/wifi*.svg 2>&1
+  echo "--- dmesg wifi ---";     dmesg | grep -iE "rk915|wlan|wifi|80211|sdio" | tail -30
+} > /boot/wifi_log.txt 2>&1
+sync
+EOS
+chmod 755 /usr/local/bin/wifi-diag.sh && bash -n /usr/local/bin/wifi-diag.sh && ok "wifi-diag.sh criado"
+systemd-run --on-active=60 --unit=wifi-diag-first /usr/local/bin/wifi-diag.sh >/dev/null 2>&1 && ok "primeiro diagnostico agendado"
+
+sync
+echo "$VER" > "$DONE"
+echo "==== fim $(date) ===="
+echo
+exit 0

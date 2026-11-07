@@ -1,0 +1,6 @@
+[clone.sh] boot.ini readable, parsed DTB='rk3326-k36s-linux.dtb'
+[clone.sh] DTB filename: rk3326-k36s-linux.dtb, LABEL: k36s
+[clone.sh] Console unchanged (k36s); nothing to do.
+[clone.sh] insmod rk915.ko: k36s
+[clone.sh] Not D007 -> disabling adckeys.service (if exists)
+[clone.sh] Done. LABEL=k36s, CONSOLE_FILE=k36s

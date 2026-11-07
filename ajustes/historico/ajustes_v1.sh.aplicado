@@ -1,0 +1,184 @@
+#!/bin/bash
+# Ajustes aplicados no boot (chamado pelo /boot/firstboot.sh, como root).
+# Roda uma vez por versao. Log: /boot/ajustes_log.txt
+# Backups de tudo que for alterado: /opt/ajustes-backup/<data>/
+VER=1
+DONE=/boot/ajustes.done
+LOG=/boot/ajustes_log.txt
+[ "$(cat "$DONE" 2>/dev/null)" = "$VER" ] && exit 0
+
+BK=/opt/ajustes-backup/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$BK"
+exec >>"$LOG" 2>&1
+echo "==== ajustes v$VER  $(date)  console=$(cat /boot/.console 2>/dev/null) ===="
+bk()   { [ -e "$1" ] && mkdir -p "$BK$(dirname "$1")" && cp -a "$1" "$BK$1" && echo "  backup: $1"; }
+ok()   { echo "OK   $*"; }
+fail() { echo "ERRO $*"; }
+
+# ------------------------------------------------------------------ 1. LED dos analogicos
+echo "[1] joyled: padrao breathing red + boot passa a respeitar o menu JoyLED"
+bk /usr/local/bin/k36s_joyled.sh
+cat > /usr/local/bin/k36s_joyled.sh <<'EOF'
+#!/bin/bash
+# LED dos analogicos no boot. Usa a escolha salva pelo menu JoyLED.
+# Sem escolha salva -> breathing red. Escolha "off" (arquivo vazio) -> apagado.
+STATE=/var/lib/joyled/state
+if [ -e "$STATE" ]; then MODE="$(tr -d '\r\n ' < "$STATE")"; [ -z "$MODE" ] && MODE=off; else MODE=breath_red; fi
+case "$MODE" in
+  red) C=3;; green) C=1;; blue) C=2;; white) C=7;; orange) C=5;; purple) C=6;; cyan) C=4;;
+  breath_red) C=19;; breath_green) C=17;; breath_blue) C=18;; breath_white) C=23;;
+  breath_orange) C=21;; breath_purple) C=22;; breath_cyan) C=20;; breath) C=24;; flow) C=8;;
+  off) C=off;; *) C=19;;
+esac
+[ -d /sys/class/gpio/gpio65 ] || echo 65 > /sys/class/gpio/export 2>/dev/null
+echo out > /sys/class/gpio/gpio65/direction 2>/dev/null
+if [ "$C" = off ]; then echo 0 > /sys/class/gpio/gpio65/value 2>/dev/null; exit 0; fi
+echo 1 > /sys/class/gpio/gpio65/value 2>/dev/null
+for i in 1 2 3; do /usr/bin/mcu_led /dev/ttyS2 chgmode "$C" 1 >/dev/null 2>&1; sleep 2; done
+exit 0
+EOF
+chmod 755 /usr/local/bin/k36s_joyled.sh && ok "k36s_joyled.sh reescrito"
+bk /var/lib/joyled/state
+mkdir -p /var/lib/joyled && echo breath_red > /var/lib/joyled/state && ok "estado do menu JoyLED = breath_red"
+
+# ------------------------------------------------------------------ 2. NDS (DraStic)
+echo "[2] NDS: botoes pelo indice real do GO-Super Gamepad, atalhos so com FN"
+G=/opt/drastic/drastic.gptk
+bk "$G"
+cat > "$G" <<'EOF'
+back = none
+start = none
+guide = none
+a = none
+b = none
+x = none
+y = none
+l1 = none
+l2 = none
+l3 = none
+r1 = none
+r2 = none
+r3 = none
+up = none
+down = none
+left = none
+right = none
+left_analog_up = none
+left_analog_down = none
+left_analog_left = none
+left_analog_right = none
+right_analog_up = none
+right_analog_down = none
+right_analog_left = none
+right_analog_right = none
+guide_a = none
+guide_b = none
+guide_x = none
+guide_y = none
+guide_start = none
+guide_back = none
+guide_l1 = none
+guide_r1 = none
+guide_l3 = none
+guide_l2 = f7
+guide_r2 = f5
+guide_r3 = m
+EOF
+ok "drastic.gptk: FN+R2 salva, FN+L2 carrega, FN+R3 menu (demais botoes sem tecla extra)"
+
+CFG=/opt/drastic/config/drastic.cfg
+bk "$CFG"
+python3 - "$CFG" <<'PY' && ok "drastic.cfg: controles do joystick corrigidos"
+import sys
+p = sys.argv[1]
+B = {  # indice SDL = ordem dos codigos do device tree (confirmado no gamecontrollerdb do GO-Super)
+ "UP": 1032, "DOWN": 1033, "LEFT": 1034, "RIGHT": 1035,
+ "A": 1025, "B": 1024, "X": 1026, "Y": 1027, "L": 1028, "R": 1029,
+ "START": 1037, "SELECT": 1036,
+ "TOUCH_CURSOR_PRESS": 1038,          # L3 toca na tela (cursor fica no analogico esquerdo)
+ "MENU": 65535,                       # tirado do analogico direito (abria sem querer)
+ "UI_UP": 1032, "UI_DOWN": 1033, "UI_LEFT": 1034, "UI_RIGHT": 1035,
+ "UI_SELECT": 1025, "UI_BACK": 1024, "UI_EXIT": 65535, "UI_SWITCH": 1026,
+ "UI_PAGE_UP": 1028, "UI_PAGE_DOWN": 1029,
+}
+out, seen = [], set()
+for line in open(p, newline="").read().split("\n"):
+    k = line.split(" = ")[0].strip()
+    if k.startswith("controls_b[CONTROL_INDEX_"):
+        name = k[len("controls_b[CONTROL_INDEX_"):-1]
+        if name in B:
+            line = "%s = %d" % (k, B[name]); seen.add(name)
+    out.append(line)
+missing = set(B) - seen
+open(p, "w", newline="").write("\n".join(out))
+print("  chaves alteradas:", len(seen), " ausentes:", sorted(missing))
+PY
+
+D=/usr/local/bin/drastickeydemon.py
+bk "$D"
+sed -i 's/^\(\s*f1 = \)704\b/\1708/' "$D" && grep -q "f1 = 708" "$D" && ok "sair do NDS: SELECT+START -> FN+START (igual aos outros emuladores)"
+
+# ------------------------------------------------------------------ 3. PSP (PPSSPP)
+echo "[3] PSP: mapeamento correto do GO-Super para o PPSSPP (sem ele o d-pad esquerdo abria o menu)"
+DB=/opt/ppsspp/assets/gamecontrollerdb.txt
+LINE='190000004b4800000011000000010000,GO-Super Gamepad,a:b1,b:b0,x:b2,y:b3,back:b12,start:b13,guide:b16,dpup:b8,dpdown:b9,dpleft:b10,dpright:b11,leftshoulder:b4,rightshoulder:b5,lefttrigger:b6,righttrigger:b7,leftstick:b14,rightstick:b15,leftx:a0,lefty:a1,rightx:a2,righty:a3,platform:Linux,'
+mkdir -p /opt/ppsspp/assets
+if [ -f "$DB" ] && grep -q "GO-Super Gamepad" "$DB"; then
+    echo "  ja existe entrada GO-Super, nao alterado:"; grep "GO-Super" "$DB"
+else
+    bk "$DB"
+    [ -s "$DB" ] && [ -n "$(tail -c1 "$DB")" ] && echo >> "$DB"
+    echo "$LINE" >> "$DB" && ok "GO-Super adicionado (FN abre o menu do PPSSPP; FN+START sai)"
+fi
+
+# ------------------------------------------------------------------ 4. Hora
+echo "[4] hora: fuso consistente + sincronizacao pela internet sempre ligada"
+bk /etc/timezone
+echo "America/Sao_Paulo" > /etc/timezone
+ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime && ok "fuso America/Sao_Paulo (/etc/timezone estava Etc/UTC)"
+
+bk /etc/systemd/timesyncd.conf
+if ! grep -q "^NTP=" /etc/systemd/timesyncd.conf; then
+    sed -i 's/^\[Time\]/[Time]\nNTP=a.st1.ntp.br b.st1.ntp.br pool.ntp.org/' /etc/systemd/timesyncd.conf && ok "servidores NTP.br configurados"
+fi
+for f in "/opt/system/Disable Remote Services.sh" "/usr/local/bin/Disable Remote Services.sh"; do
+    if [ -f "$f" ] && grep -q "^sudo timedatectl set-ntp 0" "$f"; then
+        bk "$f"
+        sed -i 's/^sudo timedatectl set-ntp 0/#sudo timedatectl set-ntp 0  # desativado: a hora sincroniza sempre/' "$f" && ok "\"$f\" nao desliga mais a sincronizacao"
+    fi
+done
+timedatectl set-ntp 1 2>/dev/null || systemctl enable --now systemd-timesyncd
+ok "NTP ligado: $(timedatectl show -p NTP --value 2>/dev/null)"
+
+NM=/etc/NetworkManager/dispatcher.d/90-acertar-hora
+cat > "$NM" <<'EOF'
+#!/bin/bash
+# Quando o Wi-Fi conecta: sincroniza a hora e grava no relogio interno (RTC).
+case "$2" in up|connectivity-change) ;; *) exit 0;; esac
+(
+  systemctl restart systemd-timesyncd
+  for i in $(seq 1 30); do
+    [ "$(timedatectl show -p NTPSynchronized --value)" = "yes" ] && { hwclock --systohc --utc; exit 0; }
+    sleep 2
+  done
+) >/dev/null 2>&1 &
+exit 0
+EOF
+chmod 755 "$NM" && chown root:root "$NM" && ok "hora grava no RTC sempre que o Wi-Fi conecta"
+
+# ------------------------------------------------------------------ 5. EmulationStation
+echo "[5] EmulationStation"
+ES=/home/ark/.emulationstation/es_settings.cfg
+bk "$ES"
+sed -i 's|<int name="MaxVRAM" value="[0-9]*" />|<int name="MaxVRAM" value="200" />|' "$ES"
+sed -i 's|<bool name="ClockMode12" value="true" />|<bool name="ClockMode12" value="false" />|' "$ES"
+sed -i 's|<string name="ScreenSaverBehavior" value="random video" />|<string name="ScreenSaverBehavior" value="dim" />|' "$ES"
+chown ark:ark "$ES"
+grep -E "MaxVRAM|ClockMode12|ScreenSaverBehavior" "$ES" | sed 's/^/  /'
+ok "MaxVRAM 1000->200, relogio 24h, descanso de tela sem video"
+
+sync
+echo "$VER" > "$DONE"
+echo "==== fim $(date) ===="
+echo
+exit 0

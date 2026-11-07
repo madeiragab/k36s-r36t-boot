@@ -1,0 +1,97 @@
+#!/bin/bash
+# Ajustes aplicados no boot (chamado pelo /boot/firstboot.sh, como root).
+# Roda uma vez por versao. Log: /boot/ajustes_log.txt
+# v1/v2 (ja aplicadas): LED, controles NDS/PSP, hora, EmulationStation
+# v3: botao de power nao perde mais o save
+VER=3
+DONE=/boot/ajustes.done
+LOG=/boot/ajustes_log.txt
+[ "$(cat "$DONE" 2>/dev/null)" = "$VER" ] && exit 0
+
+BK=/opt/ajustes-backup/$(date +%Y%m%d-%H%M%S)
+mkdir -p "$BK"
+exec >>"$LOG" 2>&1
+echo "==== ajustes v$VER  $(date)  console=$(cat /boot/.console 2>/dev/null) ===="
+bk()   { [ -e "$1" ] && mkdir -p "$BK$(dirname "$1")" && cp -a "$1" "$BK$1" && echo "  backup: $1"; }
+ok()   { echo "OK   $*"; }
+fail() { echo "ERRO $*"; }
+
+# ------------------------------------------------------------------ 1. RetroArch grava o save durante o jogo
+echo "[1] RetroArch: autosave_interval 0 -> 10 s (antes o save so ia pro cartao ao sair do jogo)"
+for f in /home/ark/.config/retroarch/retroarch.cfg /home/ark/.config/retroarch/retroarch.cfg.bak \
+         /home/ark/.config/retroarch32/retroarch.cfg /home/ark/.config/retroarch32/retroarch.cfg.bak \
+         $(grep -rlE '^autosave_interval = "0"' /home/ark/.config/retroarch/config /home/ark/.config/retroarch32/config 2>/dev/null); do
+    [ -f "$f" ] || continue
+    if grep -q '^autosave_interval = "0"' "$f"; then
+        bk "$f"
+        sed -i 's/^autosave_interval = "0"$/autosave_interval = "10"/' "$f" && ok "$f"
+    fi
+done
+
+# ------------------------------------------------------------------ 2. escrita chega no cartao rapido
+echo "[2] kernel: dados vao pro cartao em ~2 s (antes ate 30 s na memoria)"
+cat > /etc/sysctl.d/99-salvar-rapido.conf <<'EOF'
+# Save de jogo no cartao em ~2 s. O botao de power pode cortar a energia,
+# e o que estiver so na memoria nessa hora se perde.
+vm.dirty_expire_centisecs = 200
+vm.dirty_writeback_centisecs = 100
+EOF
+sysctl -p /etc/sysctl.d/99-salvar-rapido.conf && ok "sysctl aplicado"
+
+# ------------------------------------------------------------------ 3. power fecha os emuladores direito
+echo "[3] botao de power: sync imediato + fecha emuladores standalone antes de desligar"
+cat > /usr/local/bin/salvar-jogo.sh <<'EOF'
+#!/bin/bash
+# Chamado pelos scripts do botao de power.  $1 = suspend | poweroff
+# O quickmode.sh do ArkOS so cuida do RetroArch e do PICO-8; aqui fecham os demais.
+sync
+[ "$1" = "poweroff" ] || exit 0
+EMUS="drastic PPSSPPSDL mupen64plus flycast yabasanshiro hypseus hypseus-singe solarus-run scummvm OpenBOR dosbox amiberry lzdoom gzdoom ecwolf piemu ti99sim-sdl linapple openmsx mvem fake08 easyrpg-player love"
+running=""
+for e in $EMUS; do pgrep -x "$e" >/dev/null && running="$running $e"; done
+if [ -n "$running" ]; then
+    for e in $running; do sudo pkill -TERM -x "$e"; done      # SDL transforma SIGTERM em "sair" normal
+    for i in $(seq 1 40); do                                   # espera ate 8 s
+        alive=""
+        for e in $running; do pgrep -x "$e" >/dev/null && alive=1; done
+        [ -z "$alive" ] && break
+        sleep 0.2
+    done
+fi
+sync
+exit 0
+EOF
+chmod 755 /usr/local/bin/salvar-jogo.sh && ok "salvar-jogo.sh criado"
+for n in finish.sh finish.sh.orig finish.sh.qm pause.sh pause.sh.orig pause.sh.qm; do bk "/usr/local/bin/$n"; done
+
+python3 - <<'PY'
+import os
+FILES = ["finish.sh", "finish.sh.orig", "finish.sh.qm", "pause.sh", "pause.sh.orig", "pause.sh.qm"]
+for name in FILES:
+    p = "/usr/local/bin/" + name
+    if not os.path.isfile(p):
+        print("  (nao existe)", p); continue
+    s = open(p, newline="").read()
+    if "salvar-jogo.sh" in s:
+        print("  ja ajustado:", p); continue
+    out = []
+    for i, line in enumerate(s.split("\n")):
+        ind = line[:len(line) - len(line.lstrip())]
+        if i == 1:
+            out.append("sync")
+        st = line.strip()
+        if st == "sudo systemctl suspend":
+            out.append(ind + "/usr/local/bin/salvar-jogo.sh suspend")
+        elif st == "sudo systemctl poweroff":
+            out.append(ind + "/usr/local/bin/salvar-jogo.sh poweroff")
+        out.append(line)
+    open(p, "w", newline="").write("\n".join(out))
+    print("OK  ", p)
+PY
+for n in finish.sh pause.sh; do bash -n /usr/local/bin/$n && ok "sintaxe $n"; done
+
+sync
+echo "$VER" > "$DONE"
+echo "==== fim $(date) ===="
+echo
+exit 0

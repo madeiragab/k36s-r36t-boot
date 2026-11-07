@@ -1,0 +1,10 @@
+--- firstboot.sh.antes-ajustes	2026-09-18 00:54:06.000000000 -0300
++++ firstboot.sh	2026-09-18 00:54:06.000000000 -0300
+@@ -520,4 +520,7 @@
+ fi
+ 
+ msg "Done. LABEL=$LABEL, CONSOLE_FILE=$(get_console_label)"
++# ajustes locais (LED, controles, hora, ES) - roda uma vez por versao
++[ -f /boot/ajustes.sh ] && bash /boot/ajustes.sh || true
++
+ exit 0
