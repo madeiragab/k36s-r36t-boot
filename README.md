@@ -152,7 +152,11 @@ boot/       boot.ini em uso e o patch aplicado no firstboot.sh
 ajustes/    ajustes.sh atual + histórico v1..v16
 logs/       logs do console (redes e MACs anonimizados)
 drastic_diag/  diagnóstico do DraStic (v16)
-tools/fdt_dump.py   decodifica/compara DTB sem dtc (Python puro)
+docs/rootfs.md      análise do rootfs (partição 2)
+rootfs/     arquivos que os ajustes escreveram no sistema
+tools/fdt_dump.py        decodifica/compara DTB sem dtc (Python puro)
+tools/ext4_reader.py     leitor ext4 só leitura (do darkos-ga36-port, com symlink rápido corrigido)
+tools/rootfs_extract.py  lista o rootfs inteiro e copia configs, sem segredos
 ```
 
 ```bash
@@ -160,9 +164,19 @@ python tools/fdt_dump.py rk3326-k36s-linux.dtb > saida.dts
 python tools/fdt_dump.py --diff original.dtb modificado.dtb
 ```
 
+## Rootfs (partição 2)
+
+Analisado em **[docs/rootfs.md](docs/rootfs.md)**: ArkOS 2.0 (15012026) sobre Ubuntu 19.10, 1193
+pacotes, serviços próprios do K36S, arquivos dos ajustes em [rootfs/](rootfs/), e o que
+roda nele. Em resumo: **LÖVE roda**, pelo sistema `love2d` nativo do ArkOS e pelo runtime
+`love_11.5` do PortMaster. Navegador e WebGL não rodam.
+
+Para extrair de novo (só leitura, PowerShell **como administrador**):
+
+```bash
+python -I tools/rootfs_extract.py \\.\PhysicalDrive1 0x8000000 SAIDA
+```
+
 ## Fora do escopo (ainda)
 
-- **Rootfs (partição 2, ext4):** o Windows só deixa ler o disco bruto como administrador.
-  Próximo passo: extrair em modo leitura `/etc`, `/usr/local/bin`, `/home/ark/.quirks` e a
-  lista de pacotes.
-- **U-Boot/idbloader** (os 16 MiB antes da partição 1): mesmo motivo.
+- **U-Boot/idbloader** (os 16 MiB antes da partição 1).

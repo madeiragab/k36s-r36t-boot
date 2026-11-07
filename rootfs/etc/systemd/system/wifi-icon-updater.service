@@ -1,0 +1,12 @@
+[Unit]
+Description=Wi-Fi Icon State Updater
+After=network-online.target
+Wants=network-online.target
+[Service]
+ExecStart=/usr/local/bin/wifi_icon_state_updater.sh
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+[Install]
+WantedBy=multi-user.target

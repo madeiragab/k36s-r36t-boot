@@ -1,0 +1,14 @@
+[Unit] 
+Description=Fix R36S V5 Audio via RTCWake
+# 确保在音频和网络服务启动后再执行
+After=multi-user.target sound.target network.target 
+Conflicts=shutdown.target 
+
+[Service] 
+Type=oneshot 
+ExecStart=/usr/local/bin/audio-fix.sh 
+RemainAfterExit=yes 
+
+[Install]
+# 在图形界面准备就绪时触发
+WantedBy=graphical.target
